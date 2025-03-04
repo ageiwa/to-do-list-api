@@ -131,5 +131,5 @@ func main() {
 	http.HandleFunc("/login", login)
 
 	println("Server is started...")
-	http.ListenAndServe("127.0.0.1:8080", nil)
+	http.ListenAndServe(":8080", nil)
 }
