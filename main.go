@@ -1,10 +1,15 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
+	"os"
+	"log"
 
+	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type User struct {
@@ -18,14 +23,23 @@ type RegisterOptions struct {
 	Password string `json:"password"`
 }
 
-var idCounter = 0
+var conn *sql.DB
 var users []User
 
 func errResponse(w http.ResponseWriter, message string, httpStatusCode int) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatusCode)
 
 	resp := make(map[string]any)
 	resp["message"] = message
+
+	jsonResp, _ := json.Marshal(resp)
+	w.Write(jsonResp)
+}
+
+func successResopnse(w http.ResponseWriter, resp map[string]any, httpStatusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpStatusCode)
 
 	jsonResp, _ := json.Marshal(resp)
 	w.Write(jsonResp)
@@ -36,8 +50,6 @@ func register(w http.ResponseWriter, r *http.Request) {
 		errResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -50,11 +62,36 @@ func register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, user := range users {
-		if user.email == opt.Email {
-			errResponse(w, "User already exist", http.StatusBadRequest)
-			return
+	rows, err := conn.Query(`SELECT * FROM users WHERE email = ?`, opt.Email)
+
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	defer rows.Close()
+
+	users := []User{}
+
+	for rows.Next() {
+		user := User{}
+		err := rows.Scan(&user.id, &user.email, &user.hash)
+		
+		if err != nil {
+			log.Fatal(err.Error())
 		}
+
+		users = append(users, user)
+	}
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println(users)
+
+	if len(users) > 0 {
+		errResponse(w, "User already exists", http.StatusBadRequest)
+		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(opt.Password), bcrypt.DefaultCost)
@@ -64,15 +101,15 @@ func register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idCounter++
+	_, err = conn.Exec(`INSERT INTO users (email, hash) VALUES (?, ?)`, opt.Email, hash)
 
-	users = append(users, User{
-		id: idCounter,
-		email: opt.Email,
-		hash: string(hash),
-	})
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 
-	w.Write([]byte(`{ "success": true }`))
+	successResopnse(w, map[string]any{
+		"success": true,
+	}, http.StatusOK)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -80,8 +117,6 @@ func login(w http.ResponseWriter, r *http.Request) {
 		errResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -117,16 +152,40 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make(map[string]any)
-	resp["id"] = findUser.id
-	resp["email"] = findUser.email
+	successResopnse(w, map[string]any{
+		"id": findUser.id,
+		"email": findUser.email,
+	}, http.StatusOK)
+}
 
-	jsonResp, _ := json.Marshal(resp)
-
-	w.Write(jsonResp)
+func init() {
+	
 }
 
 func main() {
+	err := godotenv.Load()
+
+	if err != nil {
+		panic(err.Error())
+	}
+
+	USER, _ := os.LookupEnv("MYSQL_USER")
+	PASSWORD, _ := os.LookupEnv("MYSQL_PASSWORD")
+	PORT, _ := os.LookupEnv("MYSQL_PORT")
+
+	src := USER + ":" + PASSWORD + "@(127.0.0.1:" + PORT + ")/mydb?parseTime=true"
+	conn, err = sql.Open("mysql", src)
+
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = conn.Ping()
+
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	http.HandleFunc("/register", register)
 	http.HandleFunc("/login", login)
 
