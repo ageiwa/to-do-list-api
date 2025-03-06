@@ -24,7 +24,6 @@ type RegisterOptions struct {
 }
 
 var conn *sql.DB
-var users []User
 
 func errResponse(w http.ResponseWriter, message string, httpStatusCode int) {
 	w.Header().Set("Content-Type", "application/json")
@@ -55,14 +54,14 @@ func register(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 	
 	opt := RegisterOptions{}
-	err := decoder.Decode(&opt)
 
-	if err != nil {
+	if err := decoder.Decode(&opt); err != nil {
 		errResponse(w, "Error decode " + err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	rows, err := conn.Query(`SELECT * FROM users WHERE email = ?`, opt.Email)
+	q := "SELECT * FROM users WHERE email = ?"
+	rows, err := conn.Query(q, opt.Email)
 
 	if err != nil {
 		log.Fatal(err.Error())
@@ -83,11 +82,9 @@ func register(w http.ResponseWriter, r *http.Request) {
 		users = append(users, user)
 	}
 
-	if err != nil {
-		log.Fatal(err)
+	if err = rows.Err(); err != nil {
+		log.Fatal(err.Error())
 	}
-
-	log.Println(users)
 
 	if len(users) > 0 {
 		errResponse(w, "User already exists", http.StatusBadRequest)
@@ -101,9 +98,9 @@ func register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = conn.Exec(`INSERT INTO users (email, hash) VALUES (?, ?)`, opt.Email, hash)
-
-	if err != nil {
+	q = "INSERT INTO users (email, hash) VALUES (?, ?)"
+	
+	if _, err := conn.Exec(q, opt.Email, hash); err != nil {
 		log.Fatal(err.Error())
 	}
 
@@ -122,44 +119,33 @@ func login(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 
 	opt := RegisterOptions{}
-	err := decoder.Decode(&opt)
-
-	if err != nil {
+	
+	if err := decoder.Decode(&opt); err != nil {
 		errResponse(w, "Error decode " + err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	isFind := false
-	findUser := User{}
+	q := "SELECT id, email, hash FROM users WHERE email = ?"
+	user := User{}
 
-	for _, user := range users {
-		if user.email == opt.Email {
-			findUser = user
-			isFind = true
-			break
+	if err := conn.QueryRow(q, opt.Email).Scan(&user.id, &user.email, &user.hash); err != nil {
+		if err == sql.ErrNoRows {
+			errResponse(w, "User not found", http.StatusBadRequest)
+			return
+		} else {
+			log.Fatal(err.Error())
 		}
 	}
 
-	if !isFind {
-		errResponse(w, "User not found", http.StatusBadRequest)
-		return
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(findUser.hash), []byte(opt.Password))
-
-	if err != nil {
-		errResponse(w, "Invalid Email or password", http.StatusBadRequest)
+	if err := bcrypt.CompareHashAndPassword([]byte(user.hash), []byte(opt.Password)); err != nil {
+		errResponse(w, "Invalid email or password", http.StatusBadRequest)
 		return
 	}
 
 	successResopnse(w, map[string]any{
-		"id": findUser.id,
-		"email": findUser.email,
+		"id": user.id,
+		"email": user.email,
 	}, http.StatusOK)
-}
-
-func init() {
-	
 }
 
 func main() {
@@ -180,9 +166,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	err = conn.Ping()
-
-	if err != nil {
+	if err := conn.Ping(); err != nil {
 		log.Fatal(err.Error())
 	}
 
