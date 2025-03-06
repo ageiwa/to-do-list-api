@@ -149,9 +149,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	err := godotenv.Load()
-
-	if err != nil {
+	if err := godotenv.Load(); err != nil {
 		panic(err.Error())
 	}
 
@@ -160,7 +158,7 @@ func main() {
 	PORT, _ := os.LookupEnv("MYSQL_PORT")
 
 	src := USER + ":" + PASSWORD + "@(127.0.0.1:" + PORT + ")/mydb?parseTime=true"
-	conn, err = sql.Open("mysql", src)
+	conn, err := sql.Open("mysql", src)
 
 	if err != nil {
 		log.Fatal(err.Error())
