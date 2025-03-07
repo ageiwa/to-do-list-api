@@ -1,29 +1,22 @@
 package main
 
 import (
-	"database/sql"
-	"encoding/json"
-	"net/http"
-	"os"
-	"log"
+	"to-do-list-api/src/entities"
+	"to-do-list-api/src/infrastructure"
 
+	"encoding/json"
+	"log"
+	"net/http"
+
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
-	_ "github.com/go-sql-driver/mysql"
 )
-
-type User struct {
-	id int
-	email string
-	hash string
-}
 
 type RegisterOptions struct {
 	Email string `json:"email"`
 	Password string `json:"password"`
 }
-
-var conn *sql.DB
 
 func errResponse(w http.ResponseWriter, message string, httpStatusCode int) {
 	w.Header().Set("Content-Type", "application/json")
@@ -36,7 +29,7 @@ func errResponse(w http.ResponseWriter, message string, httpStatusCode int) {
 	w.Write(jsonResp)
 }
 
-func successResopnse(w http.ResponseWriter, resp map[string]any, httpStatusCode int) {
+func successResponse(w http.ResponseWriter, resp map[string]any, httpStatusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatusCode)
 
@@ -60,33 +53,9 @@ func register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := "SELECT * FROM users WHERE email = ?"
-	rows, err := conn.Query(q, opt.Email)
+	_, err := db.FindUserByEmail(opt.Email)
 
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	defer rows.Close()
-
-	users := []User{}
-
-	for rows.Next() {
-		user := User{}
-		err := rows.Scan(&user.id, &user.email, &user.hash)
-		
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-
-		users = append(users, user)
-	}
-
-	if err = rows.Err(); err != nil {
-		log.Fatal(err.Error())
-	}
-
-	if len(users) > 0 {
+	if err == nil {
 		errResponse(w, "User already exists", http.StatusBadRequest)
 		return
 	}
@@ -98,13 +67,16 @@ func register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q = "INSERT INTO users (email, hash) VALUES (?, ?)"
+	err = db.CreateUser(entities.User{
+		Email: opt.Email,
+		Hash: string(hash),
+	})
 	
-	if _, err := conn.Exec(q, opt.Email, hash); err != nil {
+	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	successResopnse(w, map[string]any{
+	successResponse(w, map[string]any{
 		"success": true,
 	}, http.StatusOK)
 }
@@ -125,26 +97,21 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := "SELECT id, email, hash FROM users WHERE email = ?"
-	user := User{}
+	user, err := db.FindUserByEmail(opt.Email)
 
-	if err := conn.QueryRow(q, opt.Email).Scan(&user.id, &user.email, &user.hash); err != nil {
-		if err == sql.ErrNoRows {
-			errResponse(w, "User not found", http.StatusBadRequest)
-			return
-		} else {
-			log.Fatal(err.Error())
-		}
+	if err != nil {
+		errResponse(w, "User not found", http.StatusBadRequest)
+		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.hash), []byte(opt.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Hash), []byte(opt.Password)); err != nil {
 		errResponse(w, "Invalid email or password", http.StatusBadRequest)
 		return
 	}
 
-	successResopnse(w, map[string]any{
-		"id": user.id,
-		"email": user.email,
+	successResponse(w, map[string]any{
+		"id": user.Id,
+		"email": user.Email,
 	}, http.StatusOK)
 }
 
@@ -153,20 +120,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	USER, _ := os.LookupEnv("MYSQL_USER")
-	PASSWORD, _ := os.LookupEnv("MYSQL_PASSWORD")
-	PORT, _ := os.LookupEnv("MYSQL_PORT")
-
-	src := USER + ":" + PASSWORD + "@(127.0.0.1:" + PORT + ")/mydb?parseTime=true"
-	conn, err := sql.Open("mysql", src)
-
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	if err := conn.Ping(); err != nil {
-		log.Fatal(err.Error())
-	}
+	db.NewDB()
 
 	http.HandleFunc("/register", register)
 	http.HandleFunc("/login", login)
