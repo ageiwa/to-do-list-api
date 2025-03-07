@@ -1,0 +1,2 @@
+-> docker pull mysql
+-> docker compose up -d
