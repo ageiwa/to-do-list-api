@@ -1,7 +1,9 @@
 package controllers
 
-import ()
+import (
+	"to-do-list-api/src/entities"
+)
 
-func NewUserRepository() {
-	
+type UserRespository interface {
+	CreateUser(user entities.User) error
 }

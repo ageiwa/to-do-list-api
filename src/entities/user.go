@@ -5,3 +5,7 @@ type User struct {
 	Email string
 	Hash string
 }
+
+// type UserRespository interface {
+// 	CreateUser(user User) (User, error)
+// }
