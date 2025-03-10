@@ -3,10 +3,12 @@ package handlers
 import (
 	"to-do-list-api/src/entities"
 
-	"net/http"
 	"encoding/json"
 	"log"
+	"net/http"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -90,7 +92,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	opt := RegisterOptions{}
 	
 	if err := decoder.Decode(&opt); err != nil {
-		errResponse(w, "Error decode " + err.Error(), http.StatusBadRequest)
+		errResponse(w, "Error decode " + err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -106,8 +108,21 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	successResponse(w, map[string]any{
+	payload := jwt.MapClaims{
 		"id": user.Id,
-		"email": user.Email,
+		"exp": time.Now().Add(time.Hour * 3).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, payload)
+	
+	t, err := token.SignedString([]byte("my-super-sign"))
+
+	if err != nil {
+		errResponse(w, "JWT token sign " + err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	successResponse(w, map[string]any{
+		"token": t,
 	}, http.StatusOK)
 }
