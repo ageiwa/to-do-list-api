@@ -1,4 +1,4 @@
-package user
+package entities
 
 import (
 	"to-do-list-api/src/shared"

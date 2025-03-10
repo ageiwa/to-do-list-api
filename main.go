@@ -14,8 +14,10 @@ func main() {
 
 	db.NewDB()
 
-	http.HandleFunc("/register", user.Register)
-	http.HandleFunc("/login", user.Login)
+	http.HandleFunc("/register", handlers.Register)
+	http.HandleFunc("/login", handlers.Login)
+
+	http.HandleFunc("/tasks", handlers.TaskHanlder)
 
 	println("Server is started...")
 	http.ListenAndServe(":8080", nil)

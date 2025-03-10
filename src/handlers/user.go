@@ -1,4 +1,4 @@
-package user
+package handlers
 
 import (
 	"to-do-list-api/src/entities"
@@ -50,7 +50,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := user.FindUserByEmail(opt.Email)
+	_, err := entities.FindUserByEmail(opt.Email)
 
 	if err == nil {
 		errResponse(w, "User already exists", http.StatusBadRequest)
@@ -64,7 +64,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = user.CreateUser(user.User{
+	err = entities.CreateUser(entities.User{
 		Email: opt.Email,
 		Hash: string(hash),
 	})
@@ -94,7 +94,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := user.FindUserByEmail(opt.Email)
+	user, err := entities.FindUserByEmail(opt.Email)
 
 	if err != nil {
 		errResponse(w, "User not found", http.StatusBadRequest)
