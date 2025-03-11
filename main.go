@@ -9,7 +9,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func main() {	
+func main() {
 	godotenv.Load()
 
 	db.NewDB()

@@ -12,9 +12,19 @@ type Task struct {
 	CreatedAt time.Time
 }
 
-func CreateTask(title string, desc string, userId int) error {
+func CreateTask(title string, desc string, userId int) (int, error) {
 	q := "INSERT INTO tasks (title, description, userId) VALUES (?, ?, ?)"
-	_, err := db.Conn.Exec(q, title, desc, userId)
+	res, err := db.Conn.Exec(q, title, desc, userId)
 
-	return err
+	if err != nil {
+		return 0, err
+	}
+	
+	id, err := res.LastInsertId()
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int(id), nil
 }

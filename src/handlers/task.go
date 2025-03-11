@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 	"to-do-list-api/src/entities"
@@ -53,6 +53,7 @@ func CreateTask(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil || !token.Valid {
+		log.Println(err.Error())
 		errResponse(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
@@ -76,7 +77,7 @@ func CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, ok := claims["id"].(string)
+	id, ok := claims["id"].(float64)
 
 	if !ok {
 		errResponse(w, "Wrong id type", http.StatusUnauthorized)
@@ -93,18 +94,16 @@ func CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idInt, err := strconv.ParseInt(id, 10, 64)
+	taskId, err := entities.CreateTask(opt.Title, opt.Desc, int(id))
 
 	if err != nil {
-		panic(err.Error())
-	}
-
-	if err := entities.CreateTask(opt.Title, opt.Desc, int(idInt)); err != nil {
 		errResponse(w, "Cant create task: " + err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	println("create task")
+	successResponse(w, map[string]any{
+		"taskId": taskId,
+	}, http.StatusOK)
 }
 
 func GetTasks(w http.ResponseWriter, r *http.Request) {
