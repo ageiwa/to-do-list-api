@@ -1,7 +1,7 @@
 package entities
 
 import (
-	"time"
+	"strings"
 	"to-do-list-api/src/shared"
 )
 
@@ -9,7 +9,7 @@ type Task struct {
 	Id int
 	Title string
 	Desc string
-	CreatedAt time.Time
+	CreatedAt string
 }
 
 func CreateTask(title string, desc string, userId int) (int, error) {
@@ -27,4 +27,34 @@ func CreateTask(title string, desc string, userId int) (int, error) {
 	}
 
 	return int(id), nil
+}
+
+func GetTasks(userId int) ([]Task, error) {
+	q := "SELECT id, title, description, createdAt FROM tasks WHERE userId = ?"
+	rows, err := db.Conn.Query(q, userId)
+
+	if err != nil {
+		return []Task{}, err
+	}
+
+	defer rows.Close()
+
+	tasks := []Task{}
+
+	for rows.Next() {
+		task := Task{}
+
+		if err := rows.Scan(&task.Id, &task.Title, &task.Desc, &task.CreatedAt); err != nil {
+			return []Task{}, err
+		}
+
+		task.CreatedAt = strings.Split(task.CreatedAt, "T")[0]
+		tasks = append(tasks, task)
+	}
+
+	if err := rows.Err(); err != nil {
+		return tasks, err
+	}
+
+	return tasks, nil
 }

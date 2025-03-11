@@ -53,7 +53,6 @@ func CreateTask(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil || !token.Valid {
-		log.Println(err.Error())
 		errResponse(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
@@ -107,5 +106,70 @@ func CreateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetTasks(w http.ResponseWriter, r *http.Request) {
-	println("get tasks")
+	authHeader := r.Header.Get("Authorization")
+
+	if authHeader == "" {
+		errResponse(w, "Authorization header missing", http.StatusUnauthorized)
+		return
+	}
+
+	parts := strings.Split(authHeader, " ")
+
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		errResponse(w, "Authorization header format must be Bearer {token}", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := parts[1]
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method %v", token.Header["alg"])
+		}
+
+		return []byte("my-super-sign"), nil
+	})
+
+	if err != nil || !token.Valid {
+		errResponse(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+
+	if !ok {
+		errResponse(w, "Invalid claims", http.StatusUnauthorized)
+		return
+	}
+
+	exp, ok := claims["exp"].(float64)
+
+	if !ok {
+		errResponse(w, "Wrong exp type", http.StatusUnauthorized)
+		return
+	}
+
+	if int64(exp) < time.Now().Unix() {
+		errResponse(w, "Token expired", http.StatusUnauthorized)
+		return
+	}
+
+	id, ok := claims["id"].(float64)
+
+	if !ok {
+		errResponse(w, "Wrong id type", http.StatusUnauthorized)
+		return
+	}
+
+	tasks, err := entities.GetTasks(int(id))
+
+	if err != nil {
+		log.Println(err.Error())
+		errResponse(w, "Cant get tasks", http.StatusBadRequest)
+		return
+	}
+
+	successResponse(w, map[string]any{
+		"tasks": tasks,
+	}, http.StatusOK)
 }
