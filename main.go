@@ -5,7 +5,6 @@ import (
 	"to-do-list-api/src/handlers"
 	"to-do-list-api/src/shared"
 
-	// "github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -17,7 +16,7 @@ func main() {
 	http.HandleFunc("/register", handlers.Register)
 	http.HandleFunc("/login", handlers.Login)
 
-	http.HandleFunc("/tasks", handlers.TaskHanlder)
+	http.HandleFunc("/tasks", handlers.AuthMiddleware(handlers.TaskHanlder))
 
 	println("Server is started...")
 	http.ListenAndServe(":8080", nil)
