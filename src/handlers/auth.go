@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strings"
-	"context"
-	"time"
-	"fmt"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -51,22 +51,10 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		exp, ok := claims["exp"].(float64)
-
-		if !ok {
-			errResponse(w, "Wrong exp type", http.StatusUnauthorized)
-			return
-		}
-
-		if int64(exp) < time.Now().Unix() {
-			errResponse(w, "Token expired", http.StatusUnauthorized)
-			return
-		}
-
 		id, ok := claims["id"].(float64)
 
 		if !ok {
-			errResponse(w, "Wrong id type", http.StatusUnauthorized)
+			errResponse(w, "Wrong id type", http.StatusInternalServerError)
 			return
 		}
 
